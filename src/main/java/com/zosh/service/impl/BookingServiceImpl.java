@@ -65,21 +65,53 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ── disponibilidad ── */
-    private boolean isTimeSlotAvailable(SalonDTO salon,
-            LocalDateTime start,
-            LocalDateTime end) throws Exception {
+    private boolean isTimeSlotAvailable(SalonDTO salon, LocalDateTime start, LocalDateTime end) throws Exception {
 
-        LocalDateTime open = salon.getOpenTime().atDate(start.toLocalDate());
-        LocalDateTime close = salon.getCloseTime().atDate(start.toLocalDate());
+        System.out.println("🕐 VALIDANDO SLOT DE TIEMPO:");
+        System.out.println("   Salon: " + salon.getName());
+        System.out.println("   Slot solicitado: " + start + " - " + end);
+        System.out.println("   Horario salón: " + salon.getOpenTime() + " - " + salon.getCloseTime());
 
-        if (start.isBefore(open) || end.isAfter(close))
-            throw new Exception("Booking time must be within salon's open hours.");
+        // 🚀 ARREGLO: USAR atTime() EN LUGAR DE atDate()
+        LocalDateTime salonOpen = start.toLocalDate().atTime(salon.getOpenTime());
+        LocalDateTime salonClose = start.toLocalDate().atTime(salon.getCloseTime());
 
-        for (Booking b : getBookingsBySalon(salon.getId())) {
-            boolean overlap = start.isBefore(b.getEndTime()) && end.isAfter(b.getStartTime());
-            if (overlap || start.isEqual(b.getStartTime()) || end.isEqual(b.getEndTime()))
-                throw new Exception("Slot not available, choose different time.");
+        System.out.println("   Horario completo del día: " + salonOpen + " - " + salonClose);
+
+        // ✅ VALIDAR QUE EL BOOKING ESTÉ DENTRO DEL HORARIO DEL SALÓN
+        if (start.isBefore(salonOpen)) {
+            System.out.println("❌ Hora de inicio (" + start + ") es antes de apertura (" + salonOpen + ")");
+            throw new Exception(
+                    "Booking time must be within salon's open hours. Salon opens at " + salon.getOpenTime());
         }
+
+        if (end.isAfter(salonClose)) {
+            System.out.println("❌ Hora de fin (" + end + ") es después de cierre (" + salonClose + ")");
+            throw new Exception(
+                    "Booking time must be within salon's open hours. Salon closes at " + salon.getCloseTime());
+        }
+
+        System.out.println("✅ Horario válido - verificando disponibilidad...");
+
+        // ✅ VERIFICAR QUE NO HAYA OVERLAP CON OTROS BOOKINGS
+        List<Booking> existingBookings = getBookingsBySalon(salon.getId());
+        System.out.println("   Bookings existentes: " + existingBookings.size());
+
+        for (Booking existingBooking : existingBookings) {
+            boolean overlap = start.isBefore(existingBooking.getEndTime()) &&
+                    end.isAfter(existingBooking.getStartTime());
+
+            boolean exactMatch = start.isEqual(existingBooking.getStartTime()) ||
+                    end.isEqual(existingBooking.getEndTime());
+
+            if (overlap || exactMatch) {
+                System.out.println("❌ Conflicto con booking existente: " +
+                        existingBooking.getStartTime() + " - " + existingBooking.getEndTime());
+                throw new Exception("Slot not available, choose different time. Conflicts with existing booking.");
+            }
+        }
+
+        System.out.println("✅ Slot disponible!");
         return true;
     }
 

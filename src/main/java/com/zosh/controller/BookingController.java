@@ -73,9 +73,6 @@ public class BookingController {
 
         }
 
-        /**
-         * Get all bookings for a customer
-         */
         @GetMapping("/customer")
         public ResponseEntity<Map<String, Object>> getBookingsByCustomer(
                         @RequestHeader("Authorization") String jwt,
@@ -85,22 +82,47 @@ public class BookingController {
                         @RequestHeader(value = "X-User-Role", required = false) String userRole,
                         @RequestHeader(value = "X-Auth-Source", required = false) String authSource) throws Exception {
 
-                try {
-                        UserDTO user = userService.getUserFromJwtToken(jwt).getBody();
-                        List<Booking> bookings = bookingService.getBookingsByCustomer(user.getId());
-                        Set<BookingDTO> bookingDTOs = getBookingDTOs(bookings, jwt); // ✅ PASAR JWT
+                System.out.println("📅 BOOKING CONTROLLER - getBookingsByCustomer");
 
+                try {
+                        // 🚀 OBTENER USUARIO
+                        UserDTO user = userService.getUserFromJwtToken(jwt).getBody();
+
+                        if (user == null) {
+                                System.out.println("❌ Usuario no encontrado");
+                                Map<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("bookings", Collections.emptyList());
+                                errorResponse.put("totalBookings", 0);
+                                errorResponse.put("error", "Usuario no encontrado");
+                                return ResponseEntity.ok(errorResponse);
+                        }
+
+                        System.out.println("👤 Usuario: " + user.getEmail() + " (ID: " + user.getId() + ")");
+
+                        // 🚀 OBTENER BOOKINGS DEL CUSTOMER (NO DEL SALÓN)
+                        List<Booking> bookings = bookingService.getBookingsByCustomer(user.getId());
+
+                        System.out.println("📋 Bookings encontrados: " + bookings.size());
+
+                        // 🚀 CONVERTIR A DTO - PASAR JWT
+                        Set<BookingDTO> bookingDTOs = getBookingDTOs(bookings, jwt);
+
+                        // 🚀 RESPUESTA CON ESTRUCTURA CORRECTA
                         Map<String, Object> response = new HashMap<>();
                         response.put("bookings", new ArrayList<>(bookingDTOs));
                         response.put("totalBookings", bookingDTOs.size());
 
+                        System.out.println("✅ Respuesta preparada con " + bookingDTOs.size() + " bookings");
+
                         return ResponseEntity.ok(response);
 
                 } catch (Exception e) {
-                        System.err.println("❌ Error obteniendo bookings: " + e.getMessage());
+                        System.err.println("❌ Error obteniendo bookings del customer: " + e.getMessage());
+                        e.printStackTrace();
 
                         Map<String, Object> errorResponse = new HashMap<>();
                         errorResponse.put("bookings", Collections.emptyList());
+                        errorResponse.put("totalBookings", 0);
                         errorResponse.put("error", e.getMessage());
 
                         return ResponseEntity.ok(errorResponse);
