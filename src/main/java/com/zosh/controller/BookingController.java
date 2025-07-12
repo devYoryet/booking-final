@@ -190,58 +190,118 @@ public class BookingController {
         public ResponseEntity<Set<BookingDTO>> getBookingsBySalon(
                         @RequestHeader("Authorization") String jwt) {
 
-                System.out.println("📊 BOOKING CONTROLLER - getBookingsBySalon");
+                System.out.println("🔥 BOOKING CONTROLLER - getBookingsBySalon INICIADO");
+                System.out.println("   JWT recibido: " + (jwt != null ? "SÍ" : "NO"));
 
                 try {
+                        // 1. Obtener usuario del JWT
+                        System.out.println("📝 Paso 1: Obteniendo usuario del JWT...");
                         UserDTO user = userService.getUserFromJwtToken(jwt).getBody();
 
                         if (user == null) {
-                                System.out.println("❌ Usuario no encontrado");
+                                System.out.println("❌ Usuario no encontrado del JWT");
                                 return ResponseEntity.ok(java.util.Collections.emptySet());
                         }
 
-                        SalonDTO salon = salonService.getSalonByOwner(jwt).getBody();
+                        System.out.println("✅ Usuario encontrado:");
+                        System.out.println("   ID: " + user.getId());
+                        System.out.println("   Email: " + user.getEmail());
+
+                        // 2. Obtener salón del usuario
+                        System.out.println("📝 Paso 2: Obteniendo salón del usuario...");
+                        ResponseEntity<SalonDTO> salonResponse = salonService.getSalonByOwner(jwt);
+                        SalonDTO salon = salonResponse.getBody();
 
                         if (salon == null) {
-                                System.out.println("❌ Salón no encontrado");
+                                System.out.println("❌ Salón no encontrado para el usuario");
+                                System.out.println("   Response status: " + salonResponse.getStatusCode());
                                 return ResponseEntity.ok(java.util.Collections.emptySet());
                         }
 
+                        System.out.println("✅ Salón encontrado:");
+                        System.out.println("   Salon ID: " + salon.getId());
+                        System.out.println("   Salon Name: " + salon.getName());
+                        System.out.println("   Owner ID: " + salon.getOwnerId());
+
+                        // 3. Obtener bookings del salón
+                        System.out.println("📝 Paso 3: Obteniendo bookings del salón...");
                         List<Booking> bookings = bookingService.getBookingsBySalon(salon.getId());
 
-                        return ResponseEntity.ok(getBookingDTOs(bookings, jwt)); // ✅ PASAR JWT
+                        System.out.println("✅ Bookings encontrados:");
+                        System.out.println("   Total bookings: " + bookings.size());
 
+                        if (bookings.isEmpty()) {
+                                System.out.println("⚠️  No hay bookings en la base de datos para salonId: "
+                                                + salon.getId());
+                        } else {
+                                System.out.println("📋 Detalles de bookings:");
+                                for (int i = 0; i < Math.min(bookings.size(), 3); i++) {
+                                        Booking b = bookings.get(i);
+                                        System.out.println("   Booking " + (i + 1) + ":");
+                                        System.out.println("     ID: " + b.getId());
+                                        System.out.println("     SalonId: " + b.getSalonId());
+                                        System.out.println("     CustomerId: " + b.getCustomerId());
+                                        System.out.println("     Status: " + b.getStatus());
+                                        System.out.println("     StartTime: " + b.getStartTime());
+                                        System.out.println("     Price: " + b.getTotalPrice());
+                                }
+                        }
+
+                        // 4. Convertir a DTOs
+                        System.out.println("📝 Paso 4: Convirtiendo a DTOs...");
+                        Set<BookingDTO> bookingDTOs = getBookingDTOs(bookings, jwt);
+
+                        System.out.println("✅ DTOs creados:");
+                        System.out.println("   Total DTOs: " + bookingDTOs.size());
+
+                        return ResponseEntity.ok(bookingDTOs);
+
+                } catch (feign.FeignException.NotFound e) {
+                        System.out.println("❌ FeignException.NotFound: " + e.getMessage());
+                        System.out.println("   Probablemente el usuario no tiene salón registrado");
+                        return ResponseEntity.ok(java.util.Collections.emptySet());
                 } catch (Exception e) {
-                        System.err.println("❌ Error obteniendo bookings del salón: " + e.getMessage());
+                        System.err.println("❌ Error general en getBookingsBySalon:");
+                        System.err.println("   Error type: " + e.getClass().getSimpleName());
+                        System.err.println("   Error message: " + e.getMessage());
+                        e.printStackTrace();
                         return ResponseEntity.ok(java.util.Collections.emptySet());
                 }
         }
 
-        private Set<BookingDTO> getBookingDTOs(List<Booking> bookings, String jwt) { // ✅ AGREGAR JWT PARAMETER
-
+       private Set<BookingDTO> getBookingDTOs(List<Booking> bookings, String jwt) {
+                System.out.println("🔄 Convirtiendo " + bookings.size() + " bookings a DTOs...");
+                
                 return bookings.stream()
-                                .map(booking -> {
-                                        UserDTO user;
-                                        Set<ServiceOfferingDTO> offeringDTOS = serviceOfferingService
-                                                        .getServicesByIds(booking.getServiceIds()).getBody();
+                        .map(booking -> {
+                                try {
+                                // Obtener servicios
+                                Set<ServiceOfferingDTO> services = serviceOfferingService
+                                        .getServicesByIds(booking.getServiceIds()).getBody();
 
-                                        SalonDTO salonDTO;
-                                        try {
-                                                salonDTO = salonService.getSalonById(booking.getSalonId(), jwt)
-                                                                .getBody(); // ✅ AHORA FUNCIONA
+                                // Obtener salón
+                                SalonDTO salon = salonService.getSalonById(booking.getSalonId(), jwt).getBody();
 
-                                                user = userFeignClient.getUserById(booking.getCustomerId()).getBody();
-                                        } catch (Exception e) {
-                                                throw new RuntimeException(e);
-                                        }
-
-                                        return BookingMapper.toDTO(
-                                                        booking,
-                                                        offeringDTOS,
-                                                        salonDTO, user);
-                                })
-                                .collect(Collectors.toSet());
-        }
+                                // Crear DTO SIN usuario (temporal para evitar error de BD)
+                                BookingDTO dto = BookingMapper.toDTO(booking, services, salon, null);
+                                
+                                System.out.println("✅ DTO creado para booking ID: " + booking.getId());
+                                return dto;
+                                
+                                } catch (Exception e) {
+                                System.err.println("❌ Error creando DTO para booking " + booking.getId() + ": " + e.getMessage());
+                                // Crear DTO mínimo
+                                BookingDTO dto = new BookingDTO();
+                                dto.setId(booking.getId());
+                                dto.setStatus(booking.getStatus());
+                                dto.setTotalPrice(booking.getTotalPrice());
+                                dto.setStartTime(booking.getStartTime());
+                                dto.setEndTime(booking.getEndTime());
+                                return dto;
+                                }
+                        })
+                        .collect(Collectors.toSet());
+                }
 
         /**
          * Get a booking by its ID

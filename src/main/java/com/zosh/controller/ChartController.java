@@ -1,5 +1,5 @@
 // =============================================================================
-// BOOKING SERVICE - ChartController DEFINITIVO (sin cambiar SalonFeignClient)
+// BOOKING SERVICE - ChartController CORREGIDO
 // backend/microservices/booking-service/src/main/java/com/zosh/controller/ChartController.java
 // =============================================================================
 package com.zosh.controller;
@@ -36,7 +36,6 @@ public class ChartController {
         System.out.println("📊 CHART CONTROLLER - EARNINGS REQUEST");
 
         try {
-            // 🚀 LLAMADA NORMAL AL SALON SERVICE
             ResponseEntity<SalonDTO> salonResponse = salonService.getSalonByOwner(jwt);
             SalonDTO salon = salonResponse.getBody();
 
@@ -48,10 +47,10 @@ public class ChartController {
             System.out.println("✅ Salón encontrado: " + salon.getName() + " (ID: " + salon.getId() + ")");
 
             List<Booking> bookings = bookingService.getBookingsBySalon(salon.getId());
-            System.out.println("📊 Bookings encontrados: " + bookings.size());
+            System.out.println("📊 Bookings encontrados para earnings: " + bookings.size());
 
-            // Generate chart data
             List<Map<String, Object>> chartData = bookingChartService.generateEarningsChartData(bookings);
+            System.out.println("📈 Datos de earnings generados: " + chartData.size() + " puntos");
 
             return ResponseEntity.ok(chartData);
 
@@ -60,15 +59,6 @@ public class ChartController {
             return ResponseEntity.ok(Collections.emptyList());
         } catch (Exception e) {
             System.err.println("❌ Error obteniendo datos de earnings: " + e.getMessage());
-
-            // 🚀 VERIFICAR TIPOS ESPECÍFICOS DE ERROR
-            String errorMsg = e.getMessage().toLowerCase();
-            if (errorMsg.contains("404") || errorMsg.contains("not found") || errorMsg.contains("no salon")) {
-                System.out.println("ℹ️ Usuario no tiene salón - retornando datos vacíos");
-                return ResponseEntity.ok(Collections.emptyList());
-            }
-
-            // Para otros errores, también retornar datos vacíos para no romper UI
             return ResponseEntity.ok(Collections.emptyList());
         }
     }
@@ -80,39 +70,29 @@ public class ChartController {
         System.out.println("📊 CHART CONTROLLER - BOOKINGS REQUEST");
 
         try {
-            // 🚀 LLAMADA NORMAL AL SALON SERVICE
             ResponseEntity<SalonDTO> salonResponse = salonService.getSalonByOwner(jwt);
             SalonDTO salon = salonResponse.getBody();
 
             if (salon == null) {
-                System.out.println("⚠️ Respuesta de salón es null");
+                System.out.println("⚠️ Respuesta de salón es null para bookings");
                 return ResponseEntity.ok(Collections.emptyList());
             }
 
-            System.out.println("✅ Salón encontrado: " + salon.getName() + " (ID: " + salon.getId() + ")");
+            System.out.println("✅ Salón encontrado para bookings: " + salon.getName() + " (ID: " + salon.getId() + ")");
 
             List<Booking> bookings = bookingService.getBookingsBySalon(salon.getId());
-            System.out.println("📊 Bookings encontrados: " + bookings.size());
+            System.out.println("📊 Bookings encontrados para gráfico: " + bookings.size());
 
-            // Generate chart data
             List<Map<String, Object>> chartData = bookingChartService.generateBookingCountChartData(bookings);
+            System.out.println("📈 Datos de bookings generados: " + chartData.size() + " puntos");
 
             return ResponseEntity.ok(chartData);
 
         } catch (feign.FeignException.NotFound e) {
-            System.out.println("ℹ️ 404 - Usuario no tiene salón registrado");
+            System.out.println("ℹ️ 404 - Usuario no tiene salón registrado para bookings");
             return ResponseEntity.ok(Collections.emptyList());
         } catch (Exception e) {
             System.err.println("❌ Error obteniendo datos de bookings: " + e.getMessage());
-
-            // 🚀 VERIFICAR TIPOS ESPECÍFICOS DE ERROR
-            String errorMsg = e.getMessage().toLowerCase();
-            if (errorMsg.contains("404") || errorMsg.contains("not found") || errorMsg.contains("no salon")) {
-                System.out.println("ℹ️ Usuario no tiene salón - retornando datos vacíos");
-                return ResponseEntity.ok(Collections.emptyList());
-            }
-
-            // Para otros errores, también retornar datos vacíos para no romper UI
             return ResponseEntity.ok(Collections.emptyList());
         }
     }
